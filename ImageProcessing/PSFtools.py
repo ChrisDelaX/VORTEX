@@ -355,3 +355,46 @@ def get_radial_profile(img, (xo,yo), nbin, disp=0):
         Profile[k]=np.sum(img*M)/np.sum(M)   
     
     return Profile
+    
+def adjust_bckgr_level(img, xo, yo, R=0, disp=0):
+    ''' Computes the median/mean background level of the image outside a 
+        given radius.
+        
+        img:
+            2D image
+        (xo,yo):
+            center of the PSF
+        R: 
+            radius of the circular zone to exclude.
+        disp:
+            optional keyword for displaying images.
+    '''
+    
+    (nx,ny)=img.shape
+    r=get_r_dist(nx,ny,xo,yo)
+    
+    M=np.double(img[np.where(r>R)])   
+    
+    bckgr_med=np.median(M)
+    bckgr_mean=np.mean(M)
+    
+    
+    print '\n----- Checking background level ------'
+    print 'Background level = '+str(bckgr_med)+' [median]'
+    print '                   '+str(bckgr_mean)+' [mean]'
+    
+    if disp != 0:
+        plt.figure(disp)
+        plt.clf()
+        Pattern=np.where(r>R,np.ones((nx,ny)),np.zeros((nx,ny)))
+        plt.imshow(Pattern*img, interpolation='none')
+        plt.colorbar()
+        plt.title('Background median on external area = '+str(bckgr_med))
+    
+    if bckgr_med != 0 :
+        img=img-bckgr_med
+        print ' -> background adjusted to 0 median'
+    
+    print '------------------------------------- '
+        
+    return (img, bckgr_med, bckgr_mean)
