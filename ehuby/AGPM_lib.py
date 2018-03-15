@@ -3,6 +3,7 @@
 Created on Tue Aug 12 11:37:06 2014
 
 @author: ehuby
+updates from cdelacroix
 """
 
 import numpy as np

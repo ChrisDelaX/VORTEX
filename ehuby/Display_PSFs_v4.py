@@ -3,6 +3,7 @@
 Created on Thu Oct 16 09:04:26 2014
 
 @author: ehuby
+updates from cdelacroix
 
 v2: can be used for YACADIRE & IRCT data
 v3: backgroun subtraction for 2015-01-09 YACADIRE data in K-band

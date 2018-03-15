@@ -3,11 +3,13 @@
 Created on Wed Aug  6 07:16:24 2014
 
 @author: ehuby
+updates from cdelacroix
 """
 
+import os.path
+
 #directory="/home/ehuby/VORTEX/DATA/YACADIRE_data/2015-01-07/FITS/"
-#directory="/Users/crish/Code/Python/Rejection/DATA/Yacadire/"
-directory="/Users/crish/Code/Python/Rejection/DATA/Visir/HD125932/"
+directory=os.path.expandvars('$HOME/INSTRUMENTS/VISIR')
 
 """ date des tests """
 date='150308'   #"150107"
