@@ -41,9 +41,29 @@ class ObservingBlock(object):
         
         return 'ObservingBlock class object attributes'
 
-    def getAttribute(self, att, ind=0):
+    def getAttribute(self, att, fitInd=0):
         
         res = np.array([h[ind].header.get(att) for h in self.hdulists])
         
         return res
+
+    def HDUlistLength(self, obsInd):
         
+        assert type(obsInd) == int, "obsInd must be a integer scalar"
+        
+        path = os.path.join(self.folder, self.files[obsInd])
+        with fits.open(path) as hdulist:
+            res = len(hdulist)
+        
+        return res
+
+    def getData(self, obsInd, fitInd=0):
+        
+        assert type(obsInd) == int, "obsInd must be a integer scalar"
+        
+        path = os.path.join(self.folder, self.files[obsInd])
+        with fits.open(path) as hdulist:
+            res = hdulist[fitInd].data
+        
+        return res
+    
