@@ -1,31 +1,15 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Mar 16 07:22:40 2015
-
-@author: ehuby
-updates from cdelacroix
-"""
-
-
-import os, os.path
 import numpy as np
 import scipy.optimize as opt
 import scipy.special as spe
 import matplotlib.pyplot as plt
 from matplotlib import cm           # palette for image display
 
-
-def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
 def twoD_Gaussian((x, y), amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
     ''' Model function. 2D Gaussian.
     '''    
     
     xo = float(xo)
-    yo = float(yo)    
+    yo = float(yo)
     a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
     b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
     c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)

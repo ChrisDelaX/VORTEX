@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import ImageProcessing.tools as tools
-from ImageProcessing.ObservingBlock import ObservingBlock
+import Tools.ImageProcessing as ImPro
+from Tools.ObservingBlock import ObservingBlock
 import os.path
 import numpy as np
 #import scipy as sp
@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 """ Input Data """
 
 instruPath = os.path.expandvars('$HOME/INSTRUMENTS/VISIR')
-minprofiles = 1e-4  # constrained minimal value for the radial values, to allow log scale
 nbin = 1.           # binning parameter for the radial profile
 #asecpmm = 1.9484   # cf. Eric Pantin
 asecpp = 45.3e-3    # cf. Eric Pantin (arcsec per pixel = asecpmm*.8/34)
@@ -21,10 +20,11 @@ chopnod = 178       # chopping-nodding offset (in pixels)
 rim = 50            # image region of interest
 rbg = 250           # background region of interest
 
-targetNum = 0       # select the set of images corresponding to a run/target
-offaxisFit = True   # to find the off-axis PSF centers
+targetNum = 1       # select the set of images corresponding to a run/target
+offaxisFit = False  # to find the off-axis PSF centers
 
-""" Targets and filter """
+
+""" Targets and filters """
 
 offsets = []
 if targetNum == 0:
@@ -86,18 +86,20 @@ OB.lam = np.array(lam, ndmin=1)
 OB.lamD = OB.lam/(diam*LS)*(60*60*180/np.pi)/asecpp     # lam/D in pixel
 OB.FWHM = 1*OB.lamD                                     # Full Width Half Max
 OB.seeing = np.array(seeing, ndmin=1)
-OB.cx = cx
-OB.cy = cy
-OB.cx2,OB.cy2 = [],[]
+OB.cx, OB.cy = cx, cy
+del(cx, cy)
+OB.cx2, OB.cy2 = [],[]
 
 
 """ Analysis """
 
-ofaxMat = np.empty(((OB.nfiles/2,2*rim+1,2*rim+1)))
-fluxMat = np.empty(OB.nfiles/2)
+psfAB = np.empty(((OB.nfiles/2,2*rim+1,2*rim+1)))
+psfAB_AGPM = np.empty(((OB.nfiles/2,2*rim+1,2*rim+1)))
+bkgAB = np.empty(((OB.nfiles/2,2*rbg+1,2*rbg+1)))
+fluxAB = np.empty(OB.nfiles/2)
 for i in range(OB.nfiles/2):
-    iA = 2*i
-    iB = 2*i+1
+    iA, iB = 2*i, 2*i+1
+    cx, cy = OB.cx[iA], OB.cy[iA]
     
     # first case: the off-axis profile, 2 images per acquisition (chop A and chop B)
     if targetNum == 0:
@@ -105,99 +107,61 @@ for i in range(OB.nfiles/2):
         # open fits and load data
         psfA = OB.getData(iA, 1) # chop A
         psfB = OB.getData(iB, 1) # chop B
-        psfAB = (psfB-psfA)/2. # chopped image
+        diff = (psfB-psfA)/2. # chopped image
         
         # integrate the psf signal within the FWHM (circular aperture photometry)
-        ofaxMat[i,:,:] = psfAB[cy[iA]-rim:cy[iA]+rim+1,cx[iA]-rim:cx[iA]+rim+1]
-        r = tools.get_r_dist(2*rim+1,2*rim+1,rim,rim)
+        psfAB[i,:,:] = diff[cy-rim:cy+rim+1,cx-rim:cx+rim+1]
+        r = ImPro.get_r_dist(2*rim+1,2*rim+1,rim,rim)
         circ_area = np.where(r < OB.FWHM[iA]/2.)
-        fluxMat[i] = np.sum(ofaxMat[i,:,:][circ_area])
-        #plt.figure(); plt.imshow(ofaxMat[i,:,:], interpolation='nearest', cmap="CMRmap"); plt.colorbar()
+        fluxAB[i] = np.sum(psfAB[i,:,:][circ_area])
+        #plt.figure(); plt.imshow(psfAB[i,:,:], interpolation='nearest', cmap="CMRmap"); plt.colorbar()
         
         # fit an Airy pattern to check the off-axis PSF centers
         if offaxisFit == True:
             try:
-                (A,xo,yo,F) = tools.fit_airy_2D(ofaxMat[i,:,:])
+                (A,xo,yo,F) = ImPro.fit_airy_2D(psfAB[i,:,:])
             except:
                 xo,yo = 0,0
-            OB.cx2.append(cx[iA]-rim+xo)
-            OB.cy2.append(cy[iA]-rim+xo)
+            OB.cx2.append(cx-rim+xo)
+            OB.cy2.append(cy-rim+xo)
     
     # other cases: on sky, 2 images per acquisition (nod A and nob B, pre-chopped)
     else:
         
         # open fits and load data ([3] is the chopped image)
-        psfA = OB.getData(iA, 3) # nod A
-        psfA = OB.getData(iB, 3) # nod B
+        imgA = OB.getData(iA, 3) # nod A
+        imgB = OB.getData(iB, 3) # nod B
         
         # fit a gaussian to find the exact centers
-        PSF_nocor_A = psfA[cy-rim-chopnod:cy+rim-chopnod+1,cx-rim:cx+rim+1]
-        PSF_nocor_B = psfB[cy-rim+chopnod:cy+rim+chopnod+1,cx-rim:cx+rim+1]
-        (A,xa,ya,F) = tools.fit_airy_2D(-PSF_nocor_A)
-        (A,xb,yb,F) = tools.fit_airy_2D(PSF_nocor_B)
-
-
+        xstart, xend = cx-rim, cx+rim+1
+        ystart, yend = cy-rim, cy+rim+1
+        psfA = imgA[ystart-chopnod:yend-chopnod, xstart:xend]
+        psfB = imgB[ystart+chopnod:yend+chopnod, xstart:xend]
+        (A,xa,ya,F) = ImPro.fit_airy_2D(-psfA)
+        (A,xb,yb,F) = ImPro.fit_airy_2D(psfB)
         OB.cx2.append(cx + (xa+xb-2*rim)/2.)
         OB.cy2.append(cy + (ya+yb-2*rim)/2.)
-        chopnod2 = chopnod + (yb-ya)/2
+        
+        # build the attenuated PSF (AGPM on-axis)
         cx2 = np.round(OB.cx2[-1]).astype(int)
         cy2 = np.round(OB.cy2[-1]).astype(int)
-    
-        ##
-    
-        # build the attenuated PSF (AGPM on-axis)
-        PSF_AGPM_A = psfA[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
-        PSF_AGPM_B = psfB[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
-        PSF_AGPM = (PSF_AGPM_B-PSF_AGPM_A)/2.
-    
+        psfA_AGPM = imgA[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
+        psfB_AGPM = imgB[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
+        psfAB_AGPM[i,:,:] = (psfB_AGPM-psfA_AGPM)/2.
+        
         # for chop-nod mode, build the off-axis PSF, and the background
-        PSF_nocor_A = psfA[cy2-rim-chopnod2:cy2+rim-chopnod2+1,cx2-rim:cx2+rim+1]
-        PSF_nocor_B = psfB[cy2-rim+chopnod2:cy2+rim+chopnod2+1,cx2-rim:cx2+rim+1]
-        PSF_nocor = (PSF_nocor_B-PSF_nocor_A)/2.
-        bkg_A = psfA[cy2-rbg:cy2+rbg+1,cx2-rbg:cx2+rbg+1]
-        bkg_B = psfB[cy2-rbg:cy2+rbg+1,cx2-rbg:cx2+rbg+1]
-        bkg = (bkg_B-bkg_A)/2.
-
-        plt.figure()
-        plt.imshow(PSF_AGPM_A)
-        colorbar()
-        plt.figure()
-        plt.imshow(PSF_AGPM_B)
-        colorbar()
-
-        plt.figure()
-        plt.imshow(PSF_AGPM_B-PSF_AGPM_A)
-        colorbar()
-    
-        try:
-            (A,xb,yb,F) = tools.fit_airy_2D(PSF_AGPM)
-        except:
-            xa,ya, xb,yb = 0,0,0,0
-
-        print xa,xb,ya,yb
-
-
-        #tools.ensure_dir(path+filt+'/')
-
-
-        PSF_nocor[PSF_nocor<minprofiles] = minprofiles   
-        PSF_AGPM[PSF_AGPM<minprofiles] = minprofiles   
-        #PSF_nocor_sub = PSF_nocor - np.median(bkg)   #-np.median(PSF_nocor)
-        #PSF_AGPM_sub = PSF_AGPM + np.median(bkg)   #-np.median(PSF_AGPM)
-
-        # build the attenuated PSF (AGPM on-axis)
-        PSF_AGPM_A = psfA[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
-        PSF_AGPM_B = psfB[cy2-rim:cy2+rim+1,cx2-rim:cx2+rim+1]
-        PSF_AGPM = (PSF_AGPM_B-PSF_AGPM_A)/2.
-
-    
-        cx2 = cx + (xa+xb-2*rim)/2
-        cy2 = cy + (ya+yb-2*rim)/2
         chopnod2 = chopnod + (yb-ya)/2
-
-
-        print xa,xb,ya,yb
-
+        cy2A = np.round(OB.cy2[-1]-chopnod2).astype(int)
+        cy2B = np.round(OB.cy2[-1]+chopnod2).astype(int)
+        psfA = imgA[cy2A-rim:cy2A+rim+1,cx2-rim:cx2+rim+1]
+        psfB = imgB[cy2B-rim:cy2B+rim+1,cx2-rim:cx2+rim+1]
+        psfAB[i,:,:] = (psfB-psfA)/2.
+        bkgA = imgA[cy2-rbg:cy2+rbg+1,cx2-rbg:cx2+rbg+1]
+        bkgB = imgB[cy2-rbg:cy2+rbg+1,cx2-rbg:cx2+rbg+1]
+        bkgAB[i,:,:] = (bkgB-bkgA)/2.
+        
+        #psfAB_sub = psfAB - np.median(bkgAB)   #-np.median(psfAB)
+        #psfAB_AGPM_sub = psfAB_AGPM + np.median(bkgAB)   #-np.median(psfAB_AGPM)
 
 
 
@@ -209,7 +173,7 @@ for i in range(OB.nfiles/2):
 """ Figures """
 """ ******* """ 
 
-""" Off-axis Transmission """
+# 1/ Off-axis Transmission
 
 if targetNum == 0:
     sequence = np.array([13,11,10,9,8,7,6,2,1,0]);
@@ -223,13 +187,12 @@ if targetNum == 0:
 #    f.subplots_adjust(wspace=0)
     f.subplots_adjust(wspace=0.,right=.8);
     cbar_ax = f.add_axes([.81, 0.455, 0.007, 0.088]);
-    #f.suptitle(target+', '+filt+' '+str(lb*1e6)+'um', fontsize=8)
     # offsets in lamD
     off = pxmm/OB.lamD[0]*(114.50-np.array([114.85,114.75,114.65,114.55,114.50,114.50,114.50,114.45,114.40,114.35,114.30,114.25,114.20,114.15,114.05]))
     for k,i in enumerate(sequence): 
         myAxes = [-lim+off[i],lim+off[i],-lim,lim];
 #        psf = PSFs[i,cim-rim2:cim+rim2+1,cim+offsets[i]-rim2:cim+offsets[i]+rim2+1]/np.max(PSFs);
-        psf = ofaxMat[i]/np.max(ofaxMat)
+        psf = psfAB[i]/np.max(psfAB)
         ax = plt.subplot2grid((1,sequence.size),(0,k));
         im = ax.imshow(psf,origin='lower',vmin=vmin,vmax=vmax,extent=myAxes,\
                 interpolation='nearest',cmap="CMRmap");
@@ -253,13 +216,12 @@ if targetNum == 0:
     f=plt.figure();
     f.subplots_adjust(wspace=0.,right=.8);
     cbar_ax = f.add_axes([.81, 0.455, 0.007, 0.088]);
-    #f.suptitle(target+', '+filt+' '+str(lb*1e6)+'um', fontsize=8)
     # offsets in lamD
     off = pxmm/OB.lamD[0]*(114.50-np.array([114.85,114.75,114.65,114.55,114.50,114.50,114.50,114.45,114.40,114.35,114.30,114.25,114.20,114.15,114.05]))
     for k,i in enumerate(sequence): 
         myAxes = [-lim+off[i],lim+off[i],-lim,lim];
 #        psf = PSFs[i,cim-rim2:cim+rim2+1,cim+offsets[i]-rim2:cim+offsets[i]+rim2+1]/np.max(PSFs);
-        psf = ofaxMat[i]/np.max(ofaxMat)
+        psf = psfAB[i]/np.max(psfAB)
         psf = np.log10(psf); # for log10
         psf[np.where(np.isnan(psf))] = -4 # set nan values to 10^-4
         ax = plt.subplot2grid((1,sequence.size),(0,k));
@@ -288,7 +250,7 @@ if targetNum == 0:
     plt.xlabel(r"$\lambda$/D")
     plt.ylabel("Radial profile")
     x1=pxmm/OB.lamD[0]*(np.array([114.85,114.75,114.65,114.55,114.50,114.50,114.50,114.45,114.40,114.35,114.30,114.25,114.20,114.15,114.05])-114.50)
-    y1=fluxMat/np.max(fluxMat)*0.838 # 0.838 = facteur d'Elsa
+    y1=fluxAB/np.max(fluxAB)*0.838 # 0.838 = facteur d'Elsa
     x2 = np.array(sorted(abs(x1)))
     y2 = np.array(sorted(y1))
     dat = np.loadtxt(os.path.join(instruPath, 'Elsa/VLT_circEP_Lyot_circ_aperture_nobsc_lyotout90_lyotin20_lbd37_custom-norm.txt'))
@@ -336,37 +298,38 @@ if targetNum == 0:
 # OB.cx, OB.cy, OB.cx2, OB.cy2 
 
 
-""" On-sky targets """
+# 2/ On-sky targets
 
 #   myAxes = np.array([-1,1,-1,1])*rim/OB.lamD[0]
-
-
-            
 else:
     f=plt.figure();
     f.subplots_adjust(hspace=0)
-    f.suptitle(target+', '+filt+' '+str(lb*1e6)+'um', fontsize=14)
+#    f.suptitle(target+', '+filt+' '+str(lb*1e6)+'um', fontsize=14)
     ax1 = plt.subplot2grid((2,2), (0, 0))
     ax2 = plt.subplot2grid((2,2), (1, 0))
     ax3 = plt.subplot2grid((2,2), (0, 1),rowspan=2)
-    ax1.imshow(psfB[cy-rbg/3.:cy+rbg+1,cx-rbg*.7:cx+rbg*.7+1],origin='lower',vmin=np.min(bkg),vmax=np.max(bkg));
-    ax2.imshow(-psfA[cy-rbg:cy+rbg/3+1.,cx-rbg*.7:cx+rbg*.7+1],origin='lower',vmin=np.min(bkg),vmax=np.max(bkg)); 
-    im=ax3.imshow(bkg,origin='lower');
-    ax3.set_title('Nod B - Nod A \n Bkg median='+str(round(np.median(bkg),2)))
+    ax1.imshow(imgB[cy-rbg/3.:cy+rbg+1,cx-rbg*.7:cx+rbg*.7+1],origin='lower',vmin=np.min(bkgAB),vmax=np.max(bkgAB));
+    ax2.imshow(-imgA[cy-rbg:cy+rbg/3+1.,cx-rbg*.7:cx+rbg*.7+1],origin='lower',vmin=np.min(bkgAB),vmax=np.max(bkgAB)); 
+    im=ax3.imshow(bkgAB,origin='lower');
+    ax3.set_title('Nod B - Nod A \n Bkg median='+str(round(np.median(bkgAB),2)))
     plt.setp([a.get_xticklabels() for a in f.axes[:-2]], visible=False)
     cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
     f.subplots_adjust(right=0.8)
     f.colorbar(im, cax=cbar_ax)
     plt.savefig(path+filt+'_bkg.png', dpi=300, transparent=True);plt.clf()
+    plt.savefig(os.path.join(path,'offaxislog.png'), dpi=300, transparent=True)
+
+
+
     
-    Flux_nocor_circ=  np.sum(PSF_nocor[circ_area])
-    Flux_AGPM_circ = np.sum(PSF_AGPM[circ_area]) 
+    Flux_nocor_circ=  np.sum(psfAB[circ_area])
+    Flux_AGPM_circ = np.sum(psfAB_AGPM[circ_area]) 
     N = round(Flux_nocor_circ/Flux_AGPM_circ,1)
     print '\nAperture photometry:'
     print('Rejection = '+str(N))
     " Radial profiles "
-    P_nocor = tools.get_radial_profile(PSF_nocor, (xo,yo), nbin, disp=0)
-    P_AGPM = tools.get_radial_profile(PSF_AGPM, (xo,yo), nbin, disp=0)
+    P_nocor = ImPro.get_radial_profile(psfAB, (xo,yo), nbin, disp=0)
+    P_AGPM = ImPro.get_radial_profile(psfAB_AGPM, (xo,yo), nbin, disp=0)
     # normalization
     norm = np.max(P_nocor) 
     P_nocor = P_nocor/norm
@@ -391,8 +354,8 @@ else:
     ax1.legend(loc='upper right', fontsize=8)
     ax1.set_yscale('log'); ax1.set_ylim(minprofiles,1.);ax1.set_xlim(0,5.)
 #        ax1.set_title('Radial profiles')
-    im=ax2.imshow(PSF_nocor,origin='lower',extent=myAxes); 
-    ax3.imshow(PSF_AGPM,origin='lower',extent=myAxes,vmin=np.min(PSF_nocor),vmax=np.max(PSF_nocor)); 
+    im=ax2.imshow(psfAB,origin='lower',extent=myAxes); 
+    ax3.imshow(psfAB_AGPM,origin='lower',extent=myAxes,vmin=np.min(psfAB),vmax=np.max(psfAB)); 
     ax3.set_xlabel(r"$\lambda$/D")
     cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
     f.subplots_adjust(right=0.8)
