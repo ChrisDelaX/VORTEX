@@ -8,6 +8,7 @@ def ensure_dir(f):
 
 def cart2pol(x, y):
         rho = np.sqrt(x**2 + y**2)
-        phi = 180 + np.rad2deg(np.arctan2(y, x))  # 0-360 [deg]
+        phi = np.pi + np.arctan2(y, x)  # 0-2pi [rad]
+#        phi = 180 + np.rad2deg(np.arctan2(y, x))  # 0-360 [deg]
         return (rho, phi)
 
