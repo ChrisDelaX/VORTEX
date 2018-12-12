@@ -1,4 +1,4 @@
-from ImageProcessing.ObservingBlock import ObservingBlock
+from Tools.ObservingBlock import ObservingBlock
 
 folder = '/Users/cdelacroix/INSTRUMENTS/VISIR/2015-03-09_off-axis'
 OB = ObservingBlock(folder, start='corono')

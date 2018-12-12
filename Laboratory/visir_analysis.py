@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import Tools.ImageProcessing as ImPro
+import Tools.img_processing as ImPro
 from Tools.ObservingBlock import ObservingBlock
 import os.path
 import numpy as np
