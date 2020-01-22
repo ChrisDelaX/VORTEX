@@ -2,7 +2,7 @@
 % by Christian Delacroix (2014)
 % using a FDTD freeware called MEEP
 % http://ab-initio.mit.edu/wiki/index.php/Meep
-% Dug out in Jan 2020 with Lorenzo König
+% Dug out in Jan 2020, by Christian Delacroix & Lorenzo König
 
 clear all, close all
 
