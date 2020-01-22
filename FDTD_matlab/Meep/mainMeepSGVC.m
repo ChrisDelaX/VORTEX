@@ -2,6 +2,8 @@
 % by Christian Delacroix (2014)
 % using a FDTD freeware called MEEP
 % http://ab-initio.mit.edu/wiki/index.php/Meep
+% Dug out in Jan 2020
+
 clear all, close all
 
 %% Case selection, grating parameters
